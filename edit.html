@@ -1,0 +1,8 @@
+<h1>Editing data<h1>
+
+<form action="/save/{{.Id}}" method="POST">
+
+<div><textarea name="content" rows="20" cols="80">{{printf "%s" .Content}}</textarea></div>
+<!-- <div>value: <input type="text" name="content" value="{{.Content}}"><br></div> -->
+<div><input type="submit" value="Save"></div>
+</form>

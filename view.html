@@ -1,0 +1,13 @@
+<h1>All data</h1>
+<table>
+<tr style='text-align: left'>
+  <th>ID</th>
+  <th>Content</th>
+</tr>
+{{range .}}
+<tr>
+  <td>{{.Id}}</td>
+  <td><a href="/edit/{{.Id}}">{{.Content}}</a></td>
+</tr>
+{{end}}
+</table>
