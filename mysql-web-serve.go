@@ -8,10 +8,11 @@ import (
     "log"
     "database/sql"
     _ "github.com/go-sql-driver/mysql"
+    // "errors"
 )
 
 type Data struct {
-    Id string 
+    Id int 
     Content string
 }
 
@@ -21,39 +22,56 @@ const (
     DB_USER = "root"
     DB_PASS = "gaojingwen"
     DB_DATA_TABLE = "dataSet"
+    DB_DATA_TABLE_COLUMN_CONTENT = "content"
 )
 
 var db *sql.DB
-// save data
-// func (data *Data) save() error {
 
-// }
+// save data
+func (data *Data) save() error {
+
+        stmt1, err := db.Prepare("INSERT INTO " + DB_DATA_TABLE + 
+            "(id, " + DB_DATA_TABLE_COLUMN_CONTENT + ") VALUES(?, ?)" + 
+            " ON DUPLICATE KEY UPDATE " + DB_DATA_TABLE_COLUMN_CONTENT + "= ?")
+        if err != nil {
+            log.Fatal(err)
+        }
+        defer stmt1.Close()
+
+        _, err = stmt1.Exec(data.Id, data.Content, data.Content)
+        if err != nil {
+            log.Fatal(err)
+        }
+  
+
+    return nil
+}
 
 // var templates = template.Must(template.ParseFiles("edit.html", "view.html"))
 
-func loadData(id string) (*[]Data, error) {
-    var idInt int
-    var err error
-    var rows *sql.Rows
-    if id != "" {
-        idInt, err = strconv.Atoi(id);
-        rows, err = db.Query("select * from " + DB_DATA_TABLE + " where id = ?", idInt)
-    } else {
-        rows, err = db.Query("select * from " + DB_DATA_TABLE)
-    }
+func loadData(id int) (*Data, error) {
+    var content string
+    err := db.QueryRow("SELECT " + DB_DATA_TABLE_COLUMN_CONTENT + 
+        " FROM " + DB_DATA_TABLE + " where id = ?", id).Scan(&content)
+    return &Data{Id : id, Content : content}, err 
+}
+
+func loadAllData() (*[]Data, error) {
+    rows, err := db.Query("SELECT * FROM " + DB_DATA_TABLE)
     if err != nil {
         log.Fatal(err)
     }
     defer rows.Close()
     
     var dataSet []Data
+    var id int
     var content string
     for rows.Next() {
-        err := rows.Scan(&idInt, &content)
+        err := rows.Scan(&id, &content)
         if err != nil {
             log.Fatal(err)
         }
-        dataSet = append(dataSet, Data{Id: strconv.Itoa(idInt), Content: content})
+        dataSet = append(dataSet, Data{Id: id, Content: content})
     }
     err = rows.Err()
     if err != nil {
@@ -63,7 +81,7 @@ func loadData(id string) (*[]Data, error) {
     return &dataSet, nil
 }
 
-func renderTemplate(w http.ResponseWriter, tmpl string, dataSet *[]Data) {
+func renderTemplateShowAll(w http.ResponseWriter, tmpl string, dataSet *[]Data) {
     t, err := template.ParseFiles(tmpl + ".html")
     if err != nil {
         http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -75,27 +93,84 @@ func renderTemplate(w http.ResponseWriter, tmpl string, dataSet *[]Data) {
     }
 }
 
+func renderTemplate(w http.ResponseWriter, tmpl string, data *Data) {
+    t, err := template.ParseFiles(tmpl + ".html")
+    if err != nil {
+        http.Error(w, err.Error(), http.StatusInternalServerError)
+        return
+    }
+    err = t.Execute(w, data)
+    if err != nil {
+        http.Error(w, err.Error(), http.StatusInternalServerError)
+    }
+}
+
+func handler(w http.ResponseWriter, r *http.Request) {
+    http.Redirect(w, r, "/view/", http.StatusFound)
+}
+
+func addHandler(w http.ResponseWriter, r *http.Request) {
+    id := r.URL.Path[len("/add/"):]
+    http.Redirect(w, r, "/edit/" + id, http.StatusFound)
+}
+
 // edit the Content and store in database
 func editHandler(w http.ResponseWriter, r *http.Request) {
-    id := r.URL.Path[len("/edit/"):]
-    data, _ := loadData(id)
-
-    renderTemplate(w, "edit", data)
+    idstring := r.URL.Path[len("/edit/"):]
+    id, err := strconv.Atoi(idstring)
+    if err != nil {
+        renderTemplate(w, "empty", nil)
+    } else {
+        data, err := loadData(id)
+        if err == nil || err == sql.ErrNoRows {
+            renderTemplate(w, "edit", data)
+        } else {
+            renderTemplate(w, "empty", nil)
+        }
+    }
 }
 
 // view data from database
 func viewHandler(w http.ResponseWriter, r *http.Request) {
-    id := r.URL.Path[len("/view/"):]
-    data, _ := loadData(id)
-    renderTemplate(w, "view", data)
+    idstring := r.URL.Path[len("/view/"):]
+
+    // view specific data
+    if idstring != "" {
+        id, err := strconv.Atoi(idstring)
+        if err != nil {
+            renderTemplate(w, "empty", nil)
+            return
+        }
+        data, err := loadData(id)
+        if err == nil {
+            renderTemplateShowAll(w, "view", &[]Data{*data})
+        } else if err == sql.ErrNoRows {
+            renderTemplate(w, "not-found", data)
+        } else {
+            renderTemplate(w, "empty", nil)
+        }
+    // view data set
+    } else {
+        dataSet, _ := loadAllData()
+        renderTemplateShowAll(w, "view", dataSet)
+    }
 }
 
 func saveHandler(w http.ResponseWriter, r *http.Request) {
-    // id := r.URL.Path[len("/save/"):]
-    // content := r.FormValue("content")
-    // data := &Data{Id: id, Content: content}
-   // data.save()
-    // http.Redirect(w, r, "/view/"+title, http.StatusFound)
+    idstring := r.URL.Path[len("/save/"):]
+    id, err := strconv.Atoi(idstring)
+    if err != nil {
+        renderTemplate(w, "empty", nil)
+        return
+    }
+    content := r.FormValue("content")
+    data := &Data{Id: id, Content: content}
+    err = data.save()
+    if err != nil {
+        renderTemplate(w, "not-found", data)
+    } else {
+        http.Redirect(w, r, "/view/" + idstring, http.StatusFound)
+    }
 }
 
 func main() {
@@ -123,7 +198,9 @@ func main() {
         log.Fatal(err)
     }
 
+    http.HandleFunc("/", handler)
     http.HandleFunc("/view/", viewHandler)
     http.HandleFunc("/edit/", editHandler)
+    http.HandleFunc("/save/", saveHandler)
     http.ListenAndServe(":8080", nil)
 }
