@@ -29,21 +29,18 @@ var db *sql.DB
 
 // save data
 func (data *Data) save() error {
+    stmt1, err := db.Prepare("INSERT INTO " + DB_DATA_TABLE + 
+        "(id, " + DB_DATA_TABLE_COLUMN_CONTENT + ") VALUES(?, ?)" + 
+        " ON DUPLICATE KEY UPDATE " + DB_DATA_TABLE_COLUMN_CONTENT + "= ?")
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer stmt1.Close()
 
-        stmt1, err := db.Prepare("INSERT INTO " + DB_DATA_TABLE + 
-            "(id, " + DB_DATA_TABLE_COLUMN_CONTENT + ") VALUES(?, ?)" + 
-            " ON DUPLICATE KEY UPDATE " + DB_DATA_TABLE_COLUMN_CONTENT + "= ?")
-        if err != nil {
-            log.Fatal(err)
-        }
-        defer stmt1.Close()
-
-        _, err = stmt1.Exec(data.Id, data.Content, data.Content)
-        if err != nil {
-            log.Fatal(err)
-        }
-  
-
+    _, err = stmt1.Exec(data.Id, data.Content, data.Content)
+    if err != nil {
+        log.Fatal(err)
+    }
     return nil
 }
 
@@ -110,8 +107,11 @@ func handler(w http.ResponseWriter, r *http.Request) {
 }
 
 func addHandler(w http.ResponseWriter, r *http.Request) {
-    id := r.URL.Path[len("/add/"):]
-    http.Redirect(w, r, "/edit/" + id, http.StatusFound)
+    var cnt int
+    _ = db.QueryRow("SELECT COUNT(*) FROM " + DB_DATA_TABLE).Scan(&cnt)
+
+    nextId := strconv.Itoa(cnt+1)
+    http.Redirect(w, r, "/edit/" + nextId, http.StatusFound)
 }
 
 // edit the Content and store in database
@@ -143,7 +143,7 @@ func viewHandler(w http.ResponseWriter, r *http.Request) {
         }
         data, err := loadData(id)
         if err == nil {
-            renderTemplateShowAll(w, "view", &[]Data{*data})
+            renderTemplate(w, "view", data)
         } else if err == sql.ErrNoRows {
             renderTemplate(w, "not-found", data)
         } else {
@@ -152,7 +152,7 @@ func viewHandler(w http.ResponseWriter, r *http.Request) {
     // view data set
     } else {
         dataSet, _ := loadAllData()
-        renderTemplateShowAll(w, "view", dataSet)
+        renderTemplateShowAll(w, "viewAll", dataSet)
     }
 }
 
@@ -201,6 +201,7 @@ func main() {
     http.HandleFunc("/", handler)
     http.HandleFunc("/view/", viewHandler)
     http.HandleFunc("/edit/", editHandler)
+    http.HandleFunc("/add/", addHandler)
     http.HandleFunc("/save/", saveHandler)
     http.ListenAndServe(":8080", nil)
 }

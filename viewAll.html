@@ -1,12 +1,14 @@
-<h1>Data {{.Id}}</h1>
-<a href="/view/">Back to data list</a>
+<h1>All data</h1>
+<a href="/add/">Add a new data</a>
 <table>
 <tr style='text-align: left'>
   <th>ID</th>
   <th>Content</th>
 </tr>
+{{range .}}
 <tr>
   <td>{{.Id}}</td>
   <td><a href="/edit/{{.Id}}">{{.Content}}</a></td>
 </tr>
+{{end}}
 </table>
