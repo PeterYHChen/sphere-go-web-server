@@ -20,7 +20,7 @@ const (
     DB_HOST = "tcp(127.0.0.1:3306)"
     DB_NAME = "sphere"
     DB_USER = "root"
-    DB_PASS = "gaojingwen"
+    DB_PASS = "sphere"
     DB_DATA_TABLE = "dataSet"
     DB_DATA_TABLE_COLUMN_CONTENT = "content"
 )
@@ -203,5 +203,5 @@ func main() {
     http.HandleFunc("/edit/", editHandler)
     http.HandleFunc("/add/", addHandler)
     http.HandleFunc("/save/", saveHandler)
-    http.ListenAndServe(":8080", nil)
+    http.ListenAndServe("0.0.0.0:8080", nil)
 }
